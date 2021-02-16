@@ -16,6 +16,7 @@
 
 package com.permissionx.guolindev.request;
 
+import android.Manifest;
 import android.app.Dialog;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -36,7 +37,7 @@ import com.permissionx.guolindev.dialog.DefaultDialog;
 import com.permissionx.guolindev.dialog.RationaleDialog;
 import com.permissionx.guolindev.dialog.RationaleDialogFragment;
 
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -74,20 +75,10 @@ public class PermissionBuilder {
     Set<String> normalPermissions;
 
     /**
-     * Some permissions shouldn't request will be stored here. And notify back to user when request finished.
+     * Special permissions that we need to handle by special case.
+     * Such as SYSTEM_ALERT_WINDOW, WRITE_SETTINGS and MANAGE_EXTERNAL_STORAGE.
      */
-    Set<String> permissionsWontRequest;
-
-    /**
-     * Indicate if we should require background location permission.
-     * If app run on Android R and targetSdkVersion is R, when request ACCESS_BACKGROUND_LOCATION, this should be true.
-     */
-    boolean requireBackgroundLocationPermission;
-
-    /**
-     * Indicate if we should require SYSTEM_ALERT_WINDOW permission.
-     */
-    boolean requireSystemAlertWindowPermission;
+    Set<String> specialPermissions;
 
     /**
      * Indicates should PermissionX explain request reason before request.
@@ -111,32 +102,37 @@ public class PermissionBuilder {
     int darkColor = -1;
 
     /**
+     * Some permissions shouldn't request will be stored here. And notify back to user when request finished.
+     */
+    Set<String> permissionsWontRequest = new LinkedHashSet<>();
+
+    /**
      * Holds permissions that have already granted in the requested permissions.
      */
-    Set<String> grantedPermissions = new HashSet<>();
+    Set<String> grantedPermissions = new LinkedHashSet<>();
 
     /**
      * Holds permissions that have been denied in the requested permissions.
      */
-    Set<String> deniedPermissions = new HashSet<>();
+    Set<String> deniedPermissions = new LinkedHashSet<>();
 
     /**
      * Holds permissions that have been permanently denied in the requested permissions. (Deny and never ask again)
      */
-    Set<String> permanentDeniedPermissions = new HashSet<>();
+    Set<String> permanentDeniedPermissions = new LinkedHashSet<>();
 
     /**
      * When we request multiple permissions. Some are denied, some are permanently denied. Denied permissions will be callback first.
      * And the permanently denied permissions will store in this tempPermanentDeniedPermissions. They will be callback once no more
      * denied permissions exist.
      */
-    Set<String> tempPermanentDeniedPermissions = new HashSet<>();
+    Set<String> tempPermanentDeniedPermissions = new LinkedHashSet<>();
 
     /**
      * Holds permissions which should forward to Settings to allow them.
      * Not all permanently denied permissions should forward to Settings. Only the ones developer think they are necessary should.
      */
-    Set<String> forwardPermissions = new HashSet<>();
+    Set<String> forwardPermissions = new LinkedHashSet<>();
 
     /**
      * The callback for {@link #request(RequestCallback)} method. Can not be null.
@@ -158,11 +154,10 @@ public class PermissionBuilder {
      */
     ForwardToSettingsCallback forwardToSettingsCallback;
 
-    public PermissionBuilder(FragmentActivity activity, Fragment fragment,
+    public PermissionBuilder(FragmentActivity activity,
+                             Fragment fragment,
                              Set<String> normalPermissions,
-                             Set<String> permissionsWontRequest,
-                             boolean requireBackgroundLocationPermission,
-                             boolean requireSystemAlertWindowPermission) {
+                             Set<String> specialPermissions) {
         // activity and fragment must not be null at same time
         this.activity = activity;
         this.fragment = fragment;
@@ -170,9 +165,7 @@ public class PermissionBuilder {
             this.activity = fragment.getActivity();
         }
         this.normalPermissions = normalPermissions;
-        this.permissionsWontRequest = permissionsWontRequest;
-        this.requireBackgroundLocationPermission = requireBackgroundLocationPermission;
-        this.requireSystemAlertWindowPermission = requireSystemAlertWindowPermission;
+        this.specialPermissions = specialPermissions;
     }
 
     /**
@@ -395,8 +388,35 @@ public class PermissionBuilder {
      *
      * @param chainTask Instance of current task.
      */
-    void requestOverlayPermissionNow(ChainTask chainTask) {
-        getInvisibleFragment().requestOverlayPermissionNow(this, chainTask);
+    void requestSystemAlertWindowPermissionNow(ChainTask chainTask) {
+        getInvisibleFragment().requestSystemAlertWindowPermissionNow(this, chainTask);
+    }
+
+    /**
+     * Should we request ACCESS_BACKGROUND_LOCATION permission or not.
+     *
+     * @return True if specialPermissions contains ACCESS_BACKGROUND_LOCATION permission, false otherwise.
+     */
+    boolean shouldRequestBackgroundLocationPermission() {
+        return specialPermissions.contains(RequestBackgroundLocationPermission.ACCESS_BACKGROUND_LOCATION);
+    }
+
+    /**
+     * Should we request SYSTEM_ALERT_WINDOW permission or not.
+     *
+     * @return True if specialPermissions contains SYSTEM_ALERT_WINDOW permission, false otherwise.
+     */
+    boolean shouldRequestSystemAlertWindowPermission() {
+        return specialPermissions.contains(Manifest.permission.SYSTEM_ALERT_WINDOW);
+    }
+
+    /**
+     * Get the targetSdkVersion of current app.
+     *
+     * @return The targetSdkVersion of current app.
+     */
+    int getTargetSdkVersion() {
+        return activity.getApplicationInfo().targetSdkVersion;
     }
 
     /**
